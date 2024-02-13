@@ -1,6 +1,27 @@
-import { use, Engine, Render, Runner, Bodies, Composite, Events, Mouse, MouseConstraint } from "matter-js";
-import MatterWrap from "matter-wrap";
+import { Engine, Render, Runner, Bodies, Composite, Events, Mouse, MouseConstraint } from "matter-js";
 import { toCanvas } from 'html-to-image';
+
+type Listener = (this: Element, ev: Event) => any;
+
+export function enableCustomEventListeners() {
+    const nativeAddEventListener = Element.prototype.addEventListener;
+    Element.prototype.addEventListener = function (type: keyof ElementEventMap, listener: Listener, options?: boolean | AddEventListenerOptions | undefined) {
+        if (type.toLowerCase() === "click") {
+            let listeners = this["clickEventListeners"] as Set<Listener>;
+            if (!listeners) listeners = this["clickEventListeners"] = new Set<Listener>();
+            listeners.add(listener);
+            console.log(this, listeners);
+        }
+        nativeAddEventListener(type, listener, options);
+    };
+    const nativeRemoveEventListener = Element.prototype.removeEventListener;
+    Element.prototype.removeEventListener = function (type: keyof ElementEventMap, listener: Listener, options?: boolean | AddEventListenerOptions | undefined) {
+        const listeners = this["clickEventListeners"] as Set<Listener>;
+        if (listeners) listeners.delete(listener);
+        console.log(this, listeners);
+        nativeRemoveEventListener(type, listener);
+    };
+}
 
 /**
  * Recursively parses HTML DOM and creates sprites for top level elements.
@@ -9,27 +30,26 @@ async function addChildren(engine: Engine, render: Render, element: HTMLElement)
     console.log("elem", element);
     for (const child of (element.children as any) as HTMLElement[]) {
         if (child.children.length === 0 || child.children.length === 1) {
-            console.log(child, (await toCanvas(child)).toDataURL());
-            Composite.add(
-                engine.world,
-                Bodies.rectangle(
-                    child.offsetLeft + Math.floor(child.clientWidth / 2),
-                    child.offsetTop,
-                    child.offsetWidth,
-                    child.offsetHeight,
-                    {
-                        render: {
-                            sprite: {
-                                texture: (await toCanvas(child)).toDataURL(),
-                                xScale: 0.5,
-                                yScale: 0.5,
-                            },
+            child.classList.add("shrink");
+            const newBody = Bodies.rectangle(
+                child.offsetLeft + Math.floor(child.clientWidth / 2),
+                child.offsetTop,
+                child.clientWidth,
+                child.clientHeight,
+                {
+                    render: {
+                        sprite: {
+                            texture: (await toCanvas(child)).toDataURL(),
+                            xScale: 0.5,
+                            yScale: 0.5,
                         },
-                        restitution: 0.6,
-                        friction: 0.1
-                    }
-                )
+                    },
+                    restitution: 0.6,
+                    friction: 0.1
+                }
             );
+            // newBody["domEvents"] = {};
+            Composite.add(engine.world, newBody);
         }
         else addChildren(engine, render, child);
     }
@@ -39,8 +59,12 @@ async function addChildren(engine: Engine, render: Render, element: HTMLElement)
  * Adds all the elements and a floor to keep the elements in the canvas to the scene.
  */
 async function addElementsToScene(engine: Engine, render: Render, rootElement: HTMLElement) {
+    // TODO: handle window.resize
     const floor = Bodies.rectangle(Math.floor(render.options.width / 2), render.options.height, render.options.width, 1, { isStatic: true });
-    Composite.add(engine.world, floor);
+    const ceiling = Bodies.rectangle(Math.floor(render.options.width / 2), 0, render.options.width, 1, { isStatic: true });
+    const leftWall = Bodies.rectangle(0, Math.floor(render.options.height / 2), 1, render.options.height, { isStatic: true });
+    const rightWall = Bodies.rectangle(render.options.width, Math.floor(render.options.height / 2), 1, render.options.height, { isStatic: true });
+    Composite.add(engine.world, [floor, ceiling, leftWall, rightWall]);
     await addChildren(engine, render, rootElement);
 }
 
@@ -48,7 +72,6 @@ async function addElementsToScene(engine: Engine, render: Render, rootElement: H
  * Adds mouse constraints and interprets mouse events.
  */
 function addMouseEvents(engine: Engine, render: Render, runner: Runner) {
-    // Add Mouse Events
     const mouse = Mouse.create(render.canvas);
     const mouseConstraint = MouseConstraint.create(engine, {
         mouse,
@@ -68,24 +91,11 @@ function addMouseEvents(engine: Engine, render: Render, runner: Runner) {
 }
 
 /**
- * Applies the Matter-Wrap plugin, which keeps the objects in the screen by having objects that
- * leave the screen enter on the opposite side.
+ * Brings your DOM to the canvas and applies physics - most importantly gravity - to everything.
+ * @param rootElement The element to recreate in the canvas.
+ * @param canvas The canvas to use for rendering. Will create a new canvas if left blank. Canvas will automatically resize to the client size of the `rootElement`)
+ * @returns A bunch of useful stuff.
  */
-function applyMatterWarp(engine: Engine, render: Render) {
-    use(MatterWrap);
-    Render.lookAt(render, {
-        min: { x: 0, y: 0 },
-        max: { x: render.options.width, y: render.options.height }
-    });
-    const allBodies = Composite.allBodies(engine.world);
-    for (var i = 0; i < allBodies.length; i += 1) {
-        allBodies[i].plugin.wrap = {
-            min: { x: render.bounds.min.x - 100, y: render.bounds.min.y },
-            max: { x: render.bounds.max.x + 100, y: render.bounds.max.y }
-        };
-    }
-}
-
 export async function gravitify(rootElement: HTMLElement, canvas: HTMLCanvasElement = document.createElement("canvas")) {
     const engine = Engine.create();
     const render = Render.create({
@@ -100,9 +110,9 @@ export async function gravitify(rootElement: HTMLElement, canvas: HTMLCanvasElem
     });
     const runner = Runner.create();
 
+    // Add stuff
     await addElementsToScene(engine, render, rootElement);
     addMouseEvents(engine, render, runner);
-    applyMatterWarp(engine, render);
 
     // Run engine
     Runner.run(runner, engine);

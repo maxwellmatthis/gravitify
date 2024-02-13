@@ -1,19 +1,32 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8"/>
-    <title>My First Parcel App</title>
-    <script type="module" src="app.ts"></script>
-    <style>body{margin:0}</style>
-  </head>
-  <body>
-    <main>
-      <h1>Hello, World!</h1>
-      <div>
-        <p>I'm in a container!</p>
-        <button style="background-color: rgb(0, 93, 208);">Click Me!</button>
-      </div>
-    </main>
-    <canvas style="background-color: rgb(120, 120, 120);"></canvas>
-  </body>
+
+<head>
+  <meta charset="utf-8" />
+  <title>Gravitify.js Testing Playground</title>
+  <script type="module" src="app.ts" defer>
+  </script>
+  <style>
+    body {
+      margin: 0
+    }
+
+    .shrink {
+      display: inline-block;
+      margin: 0;
+    }
+  </style>
+</head>
+
+<body>
+  <main>
+    <h1 class="shrink">Hello, World!</h1>
+    <div>
+      <p>I'm in a container!</p>
+      <button style="background-color: rgb(0, 93, 208);">Click Me!</button>
+    </div>
+  </main>
+  <canvas style="background-color: rgb(120, 120, 120);"></canvas>
+</body>
+
 </html>
