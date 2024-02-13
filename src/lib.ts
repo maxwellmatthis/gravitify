@@ -29,7 +29,9 @@ export function enableCustomEventListeners() {
 async function addChildren(engine: Engine, render: Render, element: HTMLElement) {
     console.log("elem", element);
     for (const child of (element.children as any) as HTMLElement[]) {
-        if (child.children.length === 0 || child.children.length === 1) {
+        if (child.children.length !== 0 && child.nodeName.toLowerCase() !== "button") addChildren(engine, render, child);
+        else if (child.clientWidth === 0 || child.clientHeight === 0) continue;
+        else {
             child.classList.add("shrink");
             const newBody = Bodies.rectangle(
                 child.offsetLeft + Math.floor(child.clientWidth / 2),
@@ -51,7 +53,6 @@ async function addChildren(engine: Engine, render: Render, element: HTMLElement)
             // newBody["domEvents"] = {};
             Composite.add(engine.world, newBody);
         }
-        else addChildren(engine, render, child);
     }
 }
 
@@ -59,7 +60,7 @@ async function addChildren(engine: Engine, render: Render, element: HTMLElement)
  * Adds all the elements and a floor to keep the elements in the canvas to the scene.
  */
 async function addElementsToScene(engine: Engine, render: Render, rootElement: HTMLElement) {
-    // TODO: handle window.resize
+    // TODO: handle window.resize && teleport elements that clip back into the canvas
     const floor = Bodies.rectangle(Math.floor(render.options.width / 2), render.options.height, render.options.width, 1, { isStatic: true });
     const ceiling = Bodies.rectangle(Math.floor(render.options.width / 2), 0, render.options.width, 1, { isStatic: true });
     const leftWall = Bodies.rectangle(0, Math.floor(render.options.height / 2), 1, render.options.height, { isStatic: true });
@@ -83,11 +84,11 @@ function addMouseEvents(engine: Engine, render: Render, runner: Runner) {
         }
     });
     Composite.add(engine.world, mouseConstraint);
-    Events.on(runner, "tick", (event) => {
-        if (mouseConstraint.body) {
-            // Composite.remove(engine.world, mouseConstraint.body);
-        }
-    });
+    // Events.on(runner, "tick", (event) => {
+    //     if (mouseConstraint.body) {
+    //         // Composite.remove(engine.world, mouseConstraint.body);
+    //     }
+    // });
 }
 
 /**
@@ -97,7 +98,7 @@ function addMouseEvents(engine: Engine, render: Render, runner: Runner) {
  * @returns A bunch of useful stuff.
  */
 export async function gravitify(rootElement: HTMLElement, canvas: HTMLCanvasElement = document.createElement("canvas")) {
-    const engine = Engine.create();
+    const engine = Engine.create({ positionIterations: 6 * 1.5, velocityIterations: 4 * 1.5 });
     const render = Render.create({
         engine: engine,
         canvas,
