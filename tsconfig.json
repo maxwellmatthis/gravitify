@@ -1,7 +1,21 @@
 {
-    "compilerOptions": {
-      "experimentalDecorators": true,
-      "jsxImportSource": "preact",
-      "lib": ["ES2015", "DOM"]
-    }
+  "include": [
+    "src"
+  ],
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "jsxImportSource": "preact",
+    "lib": [
+      "ES2016",
+      "DOM"
+    ],
+    "outDir": "dist",
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "sourceMap": true,
+    "strict": true,
+    "target": "ES6",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext"
   }
+}

@@ -11,26 +11,37 @@
       margin: 0
     }
 
-    .shrink {
-      display: inline-block;
-      margin: 0;
+    button {
+      border: none;
     }
   </style>
 </head>
 
 <body>
   <main>
-    <h1 class="shrink">Hello, World!</h1>
+    <h1 id="main-heading">Hello, World!</h1>
     <div>
       <p>I'm in a container!</p>
       <button id="a" style="background-color: rgb(0, 93, 208);">Click Me!</button>
-      <button style="background-color: rgb(208, 0, 156);">Click Me!</button>
+      <button id="b" style="background-color: rgb(208, 0, 156);">Click Me!</button>
       <div>
         <h2>Another Heading (H2)</h2>
-        <button id="large" style="background-color: rgb(83, 208, 0);">
+        <button id="c" style="background-color: rgb(83, 208, 0);">
           <span>Click Me!</span>
         </button>
       </div>
+      <section>
+        <label for="in">My Input (this is the label)</label>
+        <input id="in" type="text" placeholder="placeholder">
+      </section>
+      <section>
+        <p id="super-specific">
+          Super specific
+          <button>
+            <span>I'm way nested</span>
+          </button>
+        </p>
+      </section>
     </div>
   </main>
   <canvas style="background-color: rgb(181, 181, 181);"></canvas>

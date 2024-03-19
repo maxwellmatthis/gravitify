@@ -1,3 +1,9 @@
+# libraries
 node_modules/
+
+# transpiled lib js
 dist/
+
+# testing and development
+test-dist/
 .parcel-cache/
