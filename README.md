@@ -2,6 +2,8 @@
 
 Brings HTML nodes and their JavaScript functionality to the canvas and applies physics to everything using matter.js.
 
+<img width="693" alt="Screenshot 2024-03-19 at 12 25 48 PM" src="https://github.com/maxwellmatthis/gravitify.js/assets/58150536/19695c40-6e8a-4b7c-8243-2d5fef64df9a">
+
 <!-- ## Installation and Setup
 
 ```bash
