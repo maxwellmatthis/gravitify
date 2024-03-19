@@ -5,8 +5,9 @@
   "compilerOptions": {
     "experimentalDecorators": true,
     "jsxImportSource": "preact",
+    "isolatedModules": true,
     "lib": [
-      "ES2016",
+      "ES6",
       "DOM"
     ],
     "outDir": "dist",
@@ -15,7 +16,6 @@
     "sourceMap": true,
     "strict": true,
     "target": "ES6",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext"
+    "moduleResolution": "node"
   }
 }

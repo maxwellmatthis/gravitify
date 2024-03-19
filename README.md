@@ -1,4 +1,4 @@
-# gravity.js
+# Gravitify
 
 Brings HTML nodes and their JavaScript functionality to the canvas and applies physics to everything using matter.js.
 
