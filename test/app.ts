@@ -1,4 +1,3 @@
-
 import { gravitify } from "../src/lib"; /* simple for quick development */
 // import { gravitify } from "gravitify"; /* with `npm link && npm link gravitify` */
 

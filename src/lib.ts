@@ -1,15 +1,50 @@
-import { Engine, Render, Runner, Bodies, Composite, Events, Mouse, MouseConstraint } from "matter-js";
+import { Engine, Render, Runner, Bodies, Composite, Events, Mouse, MouseConstraint, IEngineDefinition, IChamferableBodyDefinition, IConstraintDefinition } from "matter-js";
 import { toCanvas } from 'html-to-image';
 
-export type IsSpecialEntityFn = (e: HTMLElement) => boolean;
+export type IsSpecialEntityFn = (e: HTMLElement) => (Promise<boolean> | boolean);
 
-const defaultIsSpecialEntity: IsSpecialEntityFn = (e) => {
+export const defaultIsSpecialEntity: IsSpecialEntityFn = (e) => {
     return e.children.length === 0;
 };
 
-const image = async (e: HTMLElement) => {
+export const image = async (e: HTMLElement) => {
     return (await toCanvas(e)).toDataURL(undefined, 1);
 };
+
+export const SHRINK_CLASS_IDENTIFIER = "shrink-183ba3343c62f17b";
+export const DEFAULT_SHRINK_DEFINITION = "display:inline-block;margin:0;";
+
+/**
+ * A configuration object used to configure the physics
+ * engine and the physical behavior of elements.
+ */
+export interface PhysicsOptions {
+    engine: Pick<
+        IEngineDefinition,
+        "positionIterations" | "velocityIterations" | "enableSleeping" | "constraintIterations"
+    >,
+    /** Gravity in x- and y-direction in m/s^2. */
+    gravity: {
+        /**
+         * The gravity `x` component in `0.1*(m/s^2)`.
+         * @default 1m/s^2
+         */
+        x: number,
+        /**
+         * The gravity `y` component in `0.1*(m/s^2)`.
+         * @default 0m/s^2
+         */
+        y: number,
+    },
+    body: Pick<
+        IChamferableBodyDefinition,
+        "density" | "restitution" | "friction" | "frictionAir" | "isStatic"
+    >,
+    mouse: Pick<
+        IConstraintDefinition,
+        "stiffness" | "damping"
+    >,
+}
 
 /**
  * Brings your DOM to the canvas and applies physics - most importantly gravity - to everything.
@@ -17,25 +52,33 @@ const image = async (e: HTMLElement) => {
  * @param canvas The canvas to use for rendering. Will create a new canvas if left blank. Canvas will automatically resize to the client size of the `rootElement`)
  * @param entitySelectors An array of selectors which specifies which non-special entities are added as entities. 
  * @param isSpecialEntity A function that checks if an element should be added to the canvas as an entity. Default=All elements with zero children.
- * @returns A bunch of useful stuff.
+ * @param shrinkDefinition A CSS definition (format: `"a:1,b:2"`) that is applied to each element right before it is added to the canvas as an entity. This is intended to 'shrinks' and simplify the element (e.g. removing margin) so that the image and resulting physics body are of higher quality.
+ * @param physicsOptions A configuration object used to configure the physics engine and the physical behavior of elements.
+ * @returns A reference to the Matter.js `Matter.Engine` instance and the canvas being used.
  */
 export async function gravitify(
     rootElement: HTMLElement,
     canvas: HTMLCanvasElement = document.createElement("canvas"),
     entitySelectors: string[] = ["button", "a"],
     isSpecialEntity: IsSpecialEntityFn = defaultIsSpecialEntity,
+    shrinkDefinition: string = DEFAULT_SHRINK_DEFINITION,
+    physicsOptions?: Partial<PhysicsOptions>
 ) {
     const engine = Engine.create({
-        positionIterations: 6 * 1.5,
-        velocityIterations: 4 * 1.5,
-        gravity: { y: 0.3 }
+        positionIterations: physicsOptions?.engine?.positionIterations,
+        velocityIterations: physicsOptions?.engine?.velocityIterations,
+        constraintIterations: physicsOptions?.engine?.constraintIterations,
+        gravity: {
+            y: physicsOptions?.gravity?.y,
+            x: physicsOptions?.gravity?.x
+        },
     });
     const render = Render.create({
         engine: engine,
         canvas,
         options: {
             width: rootElement.clientWidth,
-            height: rootElement.clientHeight + 200,
+            height: rootElement.clientHeight,
             wireframes: false,
             background: "#fff"
         }
@@ -43,17 +86,23 @@ export async function gravitify(
     const runner = Runner.create();
 
     // Add elements
-    await addElementsToScene(engine, render, rootElement, entitySelectors, isSpecialEntity);
+    await addElementsToScene(
+        engine,
+        render,
+        rootElement,
+        entitySelectors,
+        isSpecialEntity,
+        shrinkDefinition,
+        physicsOptions
+    );
     addMouseEvents(engine, render);
 
     // Run engine
     Runner.run(runner, engine);
     Render.run(render);
 
-    return { engine, render, canvas };
+    return { engine, canvas };
 }
-
-const SHRINK_CLASS = "shrink-183ba3343c62f17b";
 
 /**
  * Adds all the elements and a floor to keep the elements in the canvas to the scene.
@@ -63,7 +112,9 @@ async function addElementsToScene(
     render: Render,
     rootElement: HTMLElement,
     entitySelectors: string[],
-    isSpecialEntity: IsSpecialEntityFn
+    isSpecialEntity: IsSpecialEntityFn,
+    shrinkDefinition: string,
+    physicsOptions?: Partial<PhysicsOptions>
 ) {
     const width = render.options.width || 800;
     const height = render.options.height || 600;
@@ -75,19 +126,22 @@ async function addElementsToScene(
     Composite.add(engine.world, [floor, ceiling, leftWall, rightWall]);
 
     const style = document.createElement("style");
-    style.innerHTML = `.${SHRINK_CLASS} {display:inline-block;margin:0;}`;
-    document.querySelector("body")?.appendChild(style);
-    addChildren(engine, rootElement, entitySelectors, isSpecialEntity);
+    style.innerHTML = `.${SHRINK_CLASS_IDENTIFIER} {${shrinkDefinition}}`;
+    const body = document.querySelector("body");
+    if (body) body.appendChild(style);
+    else console.warn("Gravitify: Unable to add shrink style definition to body: `document.querySelector('body')` is `undefined`.");
+    await addChildren(engine, rootElement, entitySelectors, isSpecialEntity, physicsOptions);
 }
 
 /**
  * Recursively parses HTML DOM and creates sprites for 'top level' elements.
  */
-function addChildren(
+async function addChildren(
     engine: Engine,
     element: HTMLElement,
     entitySelectors: string[],
-    isSpecialEntity: IsSpecialEntityFn
+    isSpecialEntity: IsSpecialEntityFn,
+    physicsOptions?: Partial<PhysicsOptions>
 ) {
     const eligibleChildren = new Set<HTMLElement>();
 
@@ -98,20 +152,25 @@ function addChildren(
     }
 
     for (const child of (element.children as any) as HTMLElement[]) {
-        if (!isSpecialEntity(child) && !eligibleChildren.has(child)) addChildren(engine, child, entitySelectors, isSpecialEntity);
-        else eligibleChildren.add(child);
+        if (!eligibleChildren.has(child) && !(await isSpecialEntity(child))) {
+            addChildren(engine, child, entitySelectors, isSpecialEntity, physicsOptions);
+        } else eligibleChildren.add(child);
     }
 
     for (const child of eligibleChildren) {
         // Ignore elements with no size because they cannot be seen
         // and cause zero division errors in the physics engine.
         if (child.clientWidth === 0 || child.clientHeight === 0) continue;
-        makeEntity(engine, child);
+        addEntity(engine, child, physicsOptions);
     }
 }
 
-async function makeEntity(engine: Engine, sourceElement: HTMLElement) {
-    sourceElement.classList.add(SHRINK_CLASS);
+export async function addEntity(
+    engine: Engine,
+    sourceElement: HTMLElement,
+    physicsOptions?: Partial<PhysicsOptions>
+) {
+    sourceElement.classList.add(SHRINK_CLASS_IDENTIFIER);
     const newBody = Bodies.rectangle(
         sourceElement.offsetLeft + Math.floor(sourceElement.clientWidth / 2),
         sourceElement.offsetTop,
@@ -125,8 +184,11 @@ async function makeEntity(engine: Engine, sourceElement: HTMLElement) {
                     yScale: 0.5,
                 },
             },
-            restitution: 0.6,
-            friction: 0.1,
+            restitution: physicsOptions?.body?.restitution,
+            friction: physicsOptions?.body?.friction,
+            density: physicsOptions?.body?.density,
+            frictionAir: physicsOptions?.body?.frictionAir,
+            // isStatic: physicsOptions?.body?.isStatic,
             // @ts-ignore
             sourceElement,
         }
@@ -147,12 +209,13 @@ async function makeEntity(engine: Engine, sourceElement: HTMLElement) {
 /**
  * Adds mouse constraints and interprets mouse events.
  */
-function addMouseEvents(engine: Engine, render: Render) {
+function addMouseEvents(engine: Engine, render: Render, physicsOptions?: Partial<PhysicsOptions>) {
     const mouse = Mouse.create(render.canvas);
     const mouseConstraint = MouseConstraint.create(engine, {
         mouse,
         constraint: {
-            stiffness: 0.2,
+            stiffness: physicsOptions?.mouse?.stiffness,
+            damping: physicsOptions?.mouse?.damping,
             render: {
                 visible: false
             }

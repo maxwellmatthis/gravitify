@@ -1,11 +1,11 @@
 {
     "name": "gravitify",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "description": "Add physics to HTML.",
     "main": "dist/lib.js",
     "scripts": {
       "test": "npm run dev",
-      "prepublish": "npm run build",
+      "prepare": "npm run build",
       "build": "npx tsc --declaration",
       "dev": "parcel ./test/index.html --dist-dir ./test-dist/",
       "build-dev": "parcel build"
