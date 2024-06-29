@@ -1,6 +1,52 @@
 import { Engine, Render, Runner, Bodies, Composite, Events, Mouse, MouseConstraint, IEngineDefinition, IChamferableBodyDefinition, IConstraintDefinition } from "matter-js";
 import { toCanvas } from 'html-to-image';
 
+const isSimpleMap = (v: any): boolean => (
+    v &&
+    typeof v === 'object' &&
+    Object.prototype.toString.call(v) === '[object Object]'
+);
+
+const emitUndefinedProps = <T extends { [s: string]: any; }>(obj: T): Partial<T> => {
+    const cleanObj: Partial<T> = {};
+    for (const [k, v] of Object.entries(obj)) {
+        if (isSimpleMap(v)) {
+            Object.defineProperty(
+                cleanObj,
+                k,
+                {
+                    value: emitUndefinedProps(v),
+                    writable: true,
+                    configurable: true,
+                    enumerable: true
+                }
+            );
+        }
+        else if (v !== undefined && v !== null) {
+            Object.defineProperty(
+                cleanObj,
+                k,
+                {
+                    value: v,
+                    writable: true,
+                    configurable: true,
+                    enumerable: true
+                }
+            );
+        }
+    }
+    return cleanObj;
+};
+// console.log(emitUndefinedProps({
+//     a: 1,
+//     b: "two",
+//     c: [1, 2, 3],
+//     d: new Set([1, "a", undefined]),
+//     e: new Map(),
+//     f: { a: "one", b: { some: "thing", more: { even: [2, 4, 6], not: undefined }, neither: null } },
+//     nope: undefined
+// }));
+
 export type IsSpecialEntityFn = (e: HTMLElement) => (Promise<boolean> | boolean);
 
 export const defaultIsSpecialEntity: IsSpecialEntityFn = (e) => {
@@ -62,9 +108,10 @@ export async function gravitify(
     entitySelectors: string[] = ["button", "a"],
     isSpecialEntity: IsSpecialEntityFn = defaultIsSpecialEntity,
     shrinkDefinition: string = DEFAULT_SHRINK_DEFINITION,
-    physicsOptions?: Partial<PhysicsOptions>
+    physicsOptions?: Partial<PhysicsOptions>,
+    backgroundColor: string = "#ffffff"
 ) {
-    const engine = Engine.create({
+    const engine = Engine.create(emitUndefinedProps({
         positionIterations: physicsOptions?.engine?.positionIterations,
         velocityIterations: physicsOptions?.engine?.velocityIterations,
         constraintIterations: physicsOptions?.engine?.constraintIterations,
@@ -72,7 +119,7 @@ export async function gravitify(
             y: physicsOptions?.gravity?.y,
             x: physicsOptions?.gravity?.x
         },
-    });
+    }));
     const render = Render.create({
         engine: engine,
         canvas,
@@ -80,7 +127,7 @@ export async function gravitify(
             width: rootElement.clientWidth,
             height: rootElement.clientHeight,
             wireframes: false,
-            background: "#fff"
+            background: backgroundColor
         }
     });
     const runner = Runner.create();
@@ -153,14 +200,15 @@ async function addChildren(
 
     for (const child of (element.children as any) as HTMLElement[]) {
         if (!eligibleChildren.has(child) && !(await isSpecialEntity(child))) {
-            addChildren(engine, child, entitySelectors, isSpecialEntity, physicsOptions);
+            await addChildren(engine, child, entitySelectors, isSpecialEntity, physicsOptions);
         } else eligibleChildren.add(child);
     }
 
     for (const child of eligibleChildren) {
         // Ignore elements with no size because they cannot be seen
         // and cause zero division errors in the physics engine.
-        if (child.clientWidth === 0 || child.clientHeight === 0) continue;
+        const { width, height } = child.getBoundingClientRect();
+        if (width === 0 || height === 0) continue;
         addEntity(engine, child, physicsOptions);
     }
 }
@@ -176,7 +224,7 @@ export async function addEntity(
         sourceElement.offsetTop,
         sourceElement.clientWidth,
         sourceElement.clientHeight,
-        {
+        emitUndefinedProps({
             render: {
                 sprite: {
                     texture: await image(sourceElement),
@@ -188,11 +236,10 @@ export async function addEntity(
             friction: physicsOptions?.body?.friction,
             density: physicsOptions?.body?.density,
             frictionAir: physicsOptions?.body?.frictionAir,
-            // isStatic: physicsOptions?.body?.isStatic,
+            isStatic: physicsOptions?.body?.isStatic,
             // @ts-ignore
             sourceElement,
-        }
-    );
+        }));
     const updateTexture = async () => {
         if (newBody.render.sprite?.texture) {
             newBody.render.sprite.texture = await image(sourceElement);
@@ -202,7 +249,7 @@ export async function addEntity(
     sourceElement.addEventListener("change", updateTexture);
     sourceElement.addEventListener("resize", updateTexture);
     const observer = new MutationObserver(updateTexture);
-    observer.observe(sourceElement, { characterData: false, childList: true, attributes: false });
+    observer.observe(sourceElement, { characterData: false, childList: true, attributes: true });
     Composite.add(engine.world, newBody);
 }
 
@@ -213,13 +260,13 @@ function addMouseEvents(engine: Engine, render: Render, physicsOptions?: Partial
     const mouse = Mouse.create(render.canvas);
     const mouseConstraint = MouseConstraint.create(engine, {
         mouse,
-        constraint: {
+        constraint: emitUndefinedProps({
             stiffness: physicsOptions?.mouse?.stiffness,
             damping: physicsOptions?.mouse?.damping,
             render: {
                 visible: false
             }
-        }
+        })
     });
     Composite.add(engine.world, mouseConstraint);
     Events.on(mouseConstraint, "mousedown", (_e) => {
