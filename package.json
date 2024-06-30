@@ -1,6 +1,6 @@
 {
     "name": "gravitify",
-    "version": "0.0.2",
+    "version": "0.0.3",
     "description": "Add physics to HTML.",
     "main": "dist/lib.js",
     "scripts": {

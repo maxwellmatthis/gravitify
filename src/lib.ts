@@ -7,22 +7,57 @@ const isSimpleMap = (v: any): boolean => (
     Object.prototype.toString.call(v) === '[object Object]'
 );
 
+/**
+ * Removes all key-value-pairs where the value is `undefined` or `null`.
+ * @param obj Some regular object.
+ * @returns a cleansed object.
+ * 
+ * ## Example
+ * ```ts
+ * const input = {
+ *     a: 1,
+ *     b: "two",
+ *     c: [1, 2, 3],
+ *     d: new Set([1, "a", undefined]),
+ *     e: new Map(),
+ *     f: { a: "one", b: { some: "thing", more: { even: [2, 4, 6], not: undefined }, neither: null } },
+ *     nope: undefined,
+ *     inn: {
+ *         innn: null
+ *     },
+ *     after: "hello",
+ *     next: false
+ * };
+ * let output = emitUndefinedProps(input);
+ * assert_eq(output, {
+ *     a: 1,
+ *     b: "two",
+ *     c: [1, 2, 3],
+ *     d: new Set([1, "a", undefined]),
+ *     e: new Map(),
+ *     f: { a: "one", b: { some: "thing", more: { even: [2, 4, 6] } } },
+ *     after: "hello",
+ *     next: false
+ * });
+ * ```
+ */
 const emitUndefinedProps = <T extends { [s: string]: any; }>(obj: T): Partial<T> => {
     const cleanObj: Partial<T> = {};
     for (const [k, v] of Object.entries(obj)) {
         if (isSimpleMap(v)) {
+            const innerObject = emitUndefinedProps(v as { [s: string]: any; });
+            if (Object.keys(innerObject).length === 0) continue;
             Object.defineProperty(
                 cleanObj,
                 k,
                 {
-                    value: emitUndefinedProps(v),
+                    value: innerObject,
                     writable: true,
                     configurable: true,
                     enumerable: true
                 }
             );
-        }
-        else if (v !== undefined && v !== null) {
+        } else if (v !== undefined && v !== null) {
             Object.defineProperty(
                 cleanObj,
                 k,
@@ -44,7 +79,12 @@ const emitUndefinedProps = <T extends { [s: string]: any; }>(obj: T): Partial<T>
 //     d: new Set([1, "a", undefined]),
 //     e: new Map(),
 //     f: { a: "one", b: { some: "thing", more: { even: [2, 4, 6], not: undefined }, neither: null } },
-//     nope: undefined
+//     nope: undefined,
+//     inn: {
+//         innn: null
+//     },
+//     after: "hello",
+//     next: false
 // }));
 
 export type IsSpecialEntityFn = (e: HTMLElement) => (Promise<boolean> | boolean);
@@ -65,10 +105,10 @@ export const DEFAULT_SHRINK_DEFINITION = "display:inline-block;margin:0;";
  * engine and the physical behavior of elements.
  */
 export interface PhysicsOptions {
-    engine: Pick<
+    engine: Partial<Pick<
         IEngineDefinition,
         "positionIterations" | "velocityIterations" | "enableSleeping" | "constraintIterations"
-    >,
+    >>,
     /** Gravity in x- and y-direction in m/s^2. */
     gravity: {
         /**
@@ -82,10 +122,10 @@ export interface PhysicsOptions {
          */
         y: number,
     },
-    body: Pick<
+    body: Partial<Pick<
         IChamferableBodyDefinition,
         "density" | "restitution" | "friction" | "frictionAir" | "isStatic"
-    >,
+    >>,
     mouse: Pick<
         IConstraintDefinition,
         "stiffness" | "damping"
@@ -100,6 +140,7 @@ export interface PhysicsOptions {
  * @param isSpecialEntity A function that checks if an element should be added to the canvas as an entity. Default=All elements with zero children.
  * @param shrinkDefinition A CSS definition (format: `"a:1,b:2"`) that is applied to each element right before it is added to the canvas as an entity. This is intended to 'shrinks' and simplify the element (e.g. removing margin) so that the image and resulting physics body are of higher quality.
  * @param physicsOptions A configuration object used to configure the physics engine and the physical behavior of elements.
+ * @param backgroundColor The background color of the canvas. Can be specified das HEX (`#ffffff`) or RGB (`rgb(255, 255, 255)`).
  * @returns A reference to the Matter.js `Matter.Engine` instance and the canvas being used.
  */
 export async function gravitify(
