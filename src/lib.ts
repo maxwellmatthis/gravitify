@@ -1,4 +1,4 @@
-import { Engine, Render, Runner, Bodies, Composite, Events, Mouse, MouseConstraint, IEngineDefinition, IChamferableBodyDefinition, IConstraintDefinition } from "matter-js";
+import { Engine, Render, Runner, Body, Bodies, Composite, Events, Mouse, MouseConstraint, IEngineDefinition, IChamferableBodyDefinition, IConstraintDefinition } from "matter-js";
 import { toCanvas } from 'html-to-image';
 
 const isSimpleMap = (v: any): boolean => (
@@ -161,12 +161,13 @@ export async function gravitify(
             x: physicsOptions?.gravity?.x
         },
     }));
+    const rootRect = rootElement.getBoundingClientRect();
     const render = Render.create({
         engine: engine,
         canvas,
         options: {
-            width: rootElement.clientWidth,
-            height: rootElement.clientHeight,
+            width: rootRect.width,
+            height: rootRect.height,
             wireframes: false,
             background: backgroundColor
         }
@@ -181,6 +182,7 @@ export async function gravitify(
         entitySelectors,
         isSpecialEntity,
         shrinkDefinition,
+        rootRect,
         physicsOptions
     );
     addMouseEvents(engine, render);
@@ -202,7 +204,8 @@ async function addElementsToScene(
     entitySelectors: string[],
     isSpecialEntity: IsSpecialEntityFn,
     shrinkDefinition: string,
-    physicsOptions?: Partial<PhysicsOptions>
+    rootRect: DOMRect,
+    physicsOptions?: Partial<PhysicsOptions>,
 ) {
     const width = render.options.width || 800;
     const height = render.options.height || 600;
@@ -218,7 +221,7 @@ async function addElementsToScene(
     const body = document.querySelector("body");
     if (body) body.appendChild(style);
     else console.warn("Gravitify: Unable to add shrink style definition to body: `document.querySelector('body')` is `undefined`.");
-    await addChildren(engine, rootElement, entitySelectors, isSpecialEntity, physicsOptions);
+    await addChildren(engine, rootElement, entitySelectors, isSpecialEntity, rootRect, physicsOptions);
 }
 
 /**
@@ -229,7 +232,8 @@ async function addChildren(
     element: HTMLElement,
     entitySelectors: string[],
     isSpecialEntity: IsSpecialEntityFn,
-    physicsOptions?: Partial<PhysicsOptions>
+    rootRect: DOMRect,
+    physicsOptions?: Partial<PhysicsOptions>,
 ) {
     const eligibleChildren = new Set<HTMLElement>();
 
@@ -241,7 +245,7 @@ async function addChildren(
 
     for (const child of (element.children as any) as HTMLElement[]) {
         if (!eligibleChildren.has(child) && !(await isSpecialEntity(child))) {
-            await addChildren(engine, child, entitySelectors, isSpecialEntity, physicsOptions);
+            await addChildren(engine, child, entitySelectors, isSpecialEntity, rootRect, physicsOptions);
         } else eligibleChildren.add(child);
     }
 
@@ -250,20 +254,21 @@ async function addChildren(
         // and cause zero division errors in the physics engine.
         const { width, height } = child.getBoundingClientRect();
         if (width === 0 || height === 0) continue;
-        addEntity(engine, child, physicsOptions);
+        addEntity(engine, child, rootRect, physicsOptions);
     }
 }
 
 export async function addEntity(
     engine: Engine,
     sourceElement: HTMLElement,
-    physicsOptions?: Partial<PhysicsOptions>
+    rootRect: DOMRect,
+    physicsOptions?: Partial<PhysicsOptions>,
 ) {
     sourceElement.classList.add(SHRINK_CLASS_IDENTIFIER);
     const sourceRect = sourceElement.getBoundingClientRect();
     const newBody = Bodies.rectangle(
-        sourceRect.left + Math.floor(sourceElement.clientWidth / 2),
-        sourceRect.top,
+        sourceRect.left - rootRect.left + Math.floor(sourceElement.clientWidth / 2),
+        sourceRect.top - rootRect.top,
         sourceRect.width,
         sourceRect.height,
         emitUndefinedProps({
@@ -287,6 +292,7 @@ export async function addEntity(
             newBody.render.sprite.texture = await image(sourceElement);
         }
     };
+    // TODO: resize actual body when image size changes
     sourceElement.addEventListener("input", updateTexture);
     sourceElement.addEventListener("change", updateTexture);
     sourceElement.addEventListener("resize", updateTexture);
@@ -311,10 +317,24 @@ function addMouseEvents(engine: Engine, render: Render, physicsOptions?: Partial
         })
     });
     Composite.add(engine.world, mouseConstraint);
+
+    let mousedownNotDrag = false;
+    let mouseMoveCount = 0;
+    let mouseBody: Body | null = null;
     Events.on(mouseConstraint, "mousedown", (_e) => {
-        if (mouseConstraint.body) {
+        mousedownNotDrag = true;
+        mouseMoveCount = 0;
+        mouseBody = mouseConstraint.body;
+    });
+    Events.on(mouseConstraint, "mousemove", (_e) => {
+        mouseMoveCount++;
+        if (mouseMoveCount < 5) return;
+        mousedownNotDrag = false;
+    });
+    Events.on(mouseConstraint, "mouseup", (_e) => {
+        if (mousedownNotDrag && mouseBody) {
             // @ts-ignore
-            const sourceElement: HTMLElement = mouseConstraint.body.sourceElement;
+            const sourceElement: HTMLElement = mouseBody.sourceElement;
             sourceElement.click();
             sourceElement.focus();
         }
