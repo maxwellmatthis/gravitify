@@ -8,8 +8,14 @@ const mainHeading = document.querySelector("h1#main-heading");
     console.log("A-Blue");
     if (mainHeading) mainHeading.textContent = "Hello, Blue Button!";
 });
-(document.querySelector("button#b") as HTMLButtonElement).addEventListener("click", () => console.log("B-Magenta"));
-(document.querySelector("button#c") as HTMLButtonElement).addEventListener("click", () => console.log("C-Green"));
+(document.querySelector("button#b") as HTMLButtonElement).addEventListener("click", () => {
+    console.log("B-Magenta");
+    if (mainHeading) mainHeading.textContent = "Hello, Magenta Button!";
+});
+(document.querySelector("button#c") as HTMLButtonElement).addEventListener("click", () => {
+    console.log("C-Green");
+    if (mainHeading) mainHeading.textContent = "Hello, Green Button!";
+});
 
 gravitify(
     main, canvas,

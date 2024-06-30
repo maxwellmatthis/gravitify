@@ -260,11 +260,12 @@ export async function addEntity(
     physicsOptions?: Partial<PhysicsOptions>
 ) {
     sourceElement.classList.add(SHRINK_CLASS_IDENTIFIER);
+    const sourceRect = sourceElement.getBoundingClientRect();
     const newBody = Bodies.rectangle(
-        sourceElement.offsetLeft + Math.floor(sourceElement.clientWidth / 2),
-        sourceElement.offsetTop,
-        sourceElement.clientWidth,
-        sourceElement.clientHeight,
+        sourceRect.left + Math.floor(sourceElement.clientWidth / 2),
+        sourceRect.top,
+        sourceRect.width,
+        sourceRect.height,
         emitUndefinedProps({
             render: {
                 sprite: {
