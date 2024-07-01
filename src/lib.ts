@@ -140,7 +140,7 @@ export interface PhysicsOptions {
  * @param isSpecialEntity A function that checks if an element should be added to the canvas as an entity. Default=All elements with zero children.
  * @param shrinkDefinition A CSS definition (format: `"a:1,b:2"`) that is applied to each element right before it is added to the canvas as an entity. This is intended to 'shrinks' and simplify the element (e.g. removing margin) so that the image and resulting physics body are of higher quality.
  * @param physicsOptions A configuration object used to configure the physics engine and the physical behavior of elements.
- * @param backgroundColor The background color of the canvas. Can be specified das HEX (`#ffffff`) or RGB (`rgb(255, 255, 255)`).
+ * @param backgroundColor The background color of the canvas. Must be a valid CSS color (e.g. HEX (`#ffffff`), RGB (`rgb(255, 255, 255)` or keywords like `transparent`).
  * @returns A reference to the Matter.js `Matter.Engine` instance and the canvas being used.
  */
 export async function gravitify(
@@ -210,10 +210,11 @@ async function addElementsToScene(
     const width = render.options.width || 800;
     const height = render.options.height || 600;
     // TODO: handle window.resize && teleport elements that clip back into the canvas
-    const floor = Bodies.rectangle(Math.floor(width / 2), height, width, 1, { isStatic: true });
-    const ceiling = Bodies.rectangle(Math.floor(width / 2), 0, width, 1, { isStatic: true });
-    const leftWall = Bodies.rectangle(0, Math.floor(height / 2), 1, height, { isStatic: true });
-    const rightWall = Bodies.rectangle(width, Math.floor(height / 2), 1, height, { isStatic: true });
+    const opts = { isStatic: true, render: { fillStyle: "#00000000", strokeStyle: "#00000000" } };
+    const floor = Bodies.rectangle(Math.floor(width / 2), height, width, 1, opts);
+    const ceiling = Bodies.rectangle(Math.floor(width / 2), 0, width, 1, opts);
+    const leftWall = Bodies.rectangle(0, Math.floor(height / 2), 1, height, opts);
+    const rightWall = Bodies.rectangle(width, Math.floor(height / 2), 1, height, opts);
     Composite.add(engine.world, [floor, ceiling, leftWall, rightWall]);
 
     const style = document.createElement("style");
