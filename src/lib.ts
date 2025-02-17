@@ -1,4 +1,4 @@
-import { Engine, Render, Runner, Body, Bodies, Composite, Events, Mouse, MouseConstraint, IEngineDefinition, IChamferableBodyDefinition, IConstraintDefinition } from "matter-js";
+import { Engine, Render, Runner, Body, Bodies, Composite, Events, Mouse, MouseConstraint, IEngineDefinition, IChamferableBodyDefinition, IConstraintDefinition, Vector } from "matter-js";
 import { toCanvas } from 'html-to-image';
 
 const isSimpleMap = (v: any): boolean => (
@@ -267,39 +267,69 @@ export async function addEntity(
 ) {
     sourceElement.classList.add(SHRINK_CLASS_IDENTIFIER);
     const sourceRect = sourceElement.getBoundingClientRect();
-    const newBody = Bodies.rectangle(
-        sourceRect.left - rootRect.left + Math.floor(sourceElement.clientWidth / 2),
-        sourceRect.top - rootRect.top,
-        sourceRect.width,
-        sourceRect.height,
-        emitUndefinedProps({
-            render: {
-                sprite: {
-                    texture: await image(sourceElement),
-                    xScale: 0.5,
-                    yScale: 0.5,
+    const createBody = async (
+        x?: number,
+        y?: number,
+        velocity?: Vector,
+        angle?: number,
+        angularVelocity?: number
+    ) => {
+        const newBody = Bodies.rectangle(
+            x || sourceRect.left - rootRect.left + Math.floor(sourceElement.clientWidth / 2),
+            y || sourceRect.top - rootRect.top,
+            sourceRect.width,
+            sourceRect.height,
+            emitUndefinedProps({
+                render: {
+                    sprite: {
+                        texture: await image(sourceElement),
+                        xScale: 0.5,
+                        yScale: 0.5,
+                    },
                 },
-            },
-            restitution: physicsOptions?.body?.restitution,
-            friction: physicsOptions?.body?.friction,
-            density: physicsOptions?.body?.density,
-            frictionAir: physicsOptions?.body?.frictionAir,
-            isStatic: physicsOptions?.body?.isStatic,
-            // @ts-ignore
-            sourceElement,
-        }));
-    const updateTexture = async () => {
-        if (newBody.render.sprite?.texture) {
-            newBody.render.sprite.texture = await image(sourceElement);
-        }
+                restitution: physicsOptions?.body?.restitution,
+                friction: physicsOptions?.body?.friction,
+                density: physicsOptions?.body?.density,
+                frictionAir: physicsOptions?.body?.frictionAir,
+                isStatic: physicsOptions?.body?.isStatic,
+                // @ts-ignore
+                sourceElement,
+                // @ts-ignore
+                oldDimensions: {
+                    width: sourceRect.width,
+                    height: sourceRect.height
+                }
+            }));
+        if (velocity) Body.setVelocity(newBody, velocity);
+        if (angle) Body.setAngle(newBody, angle);
+        if (angularVelocity) Body.setAngularVelocity(newBody, angularVelocity);
+
+        const updateTexture = async () => {
+            if (newBody.render.sprite?.texture) {
+                newBody.render.sprite.texture = await image(sourceElement);
+            }
+            // in case the texture size changes and the sprite has to be rebuilt
+            if (newTextureWidth
+                // @ts-ignore
+                !== newBody.oldDimensions.width ||
+                newTextureHeight
+                // @ts-ignore
+                !== newBodyd.oldDimensions.height
+            ) {
+                Composite.remove(engine.world, newBody);
+                const { x, y } = newBody.position;
+                await createBody(x, y, newBody.velocity, newBody.angle, newBody.angularVelocity);
+            }
+        };
+        // TODO: resize actual body when image size changes
+        sourceElement.addEventListener("input", updateTexture);
+        sourceElement.addEventListener("change", updateTexture);
+        sourceElement.addEventListener("resize", updateTexture);
+        const observer = new MutationObserver(updateTexture);
+        observer.observe(sourceElement, { characterData: false, childList: true, attributes: true });
+        Composite.add(engine.world, newBody);
     };
-    // TODO: resize actual body when image size changes
-    sourceElement.addEventListener("input", updateTexture);
-    sourceElement.addEventListener("change", updateTexture);
-    sourceElement.addEventListener("resize", updateTexture);
-    const observer = new MutationObserver(updateTexture);
-    observer.observe(sourceElement, { characterData: false, childList: true, attributes: true });
-    Composite.add(engine.world, newBody);
+    return await createBody();
 }
 
 /**
